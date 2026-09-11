@@ -8,6 +8,18 @@ Built and maintained by [**ginxx009**](https://github.com/ginxx009).
 
 ---
 
+## What it looks like
+
+Inbox of watched pull requests — status, findings, and re-review in one place:
+
+![Hare inbox](docs/inbox.png)
+
+A finished review — walkthrough plus Critical / Major / Minor / Nit findings:
+
+![Hare findings](docs/findings.png)
+
+---
+
 ## What it does
 
 Hare is a CodeRabbit-style reviewer you host yourself:
