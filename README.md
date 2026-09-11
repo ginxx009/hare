@@ -14,7 +14,11 @@ Inbox of watched pull requests — status, findings, and re-review in one place:
 
 ![Hare inbox](docs/inbox.png)
 
-A finished review — walkthrough plus Critical / Major / Minor / Nit findings:
+What **hare-bot** posts on GitHub (sample, names and paths changed):
+
+![hare-bot review on GitHub](docs/github-review.png)
+
+A finished review in Hare — walkthrough plus Critical / Major / Minor / Nit findings:
 
 ![Hare findings](docs/findings.png)
 
