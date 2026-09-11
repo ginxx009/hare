@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Hare">
+  <rect width="32" height="32" rx="7" fill="#0b0c0e"/>
+  <ellipse cx="16" cy="21.2" rx="7.5" ry="6.6" fill="#c5cdd6"/>
+  <polygon points="7.2,3.2 14.8,15.6 9.4,16.4" fill="#c5cdd6"/>
+  <polygon points="24.8,3.2 17.2,15.6 22.6,16.4" fill="#c5cdd6"/>
+</svg>
