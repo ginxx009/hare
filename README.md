@@ -191,9 +191,29 @@ npm install
 npm run db:migrate
 npm run dev          # Vite dev server
 npm run typecheck
-npm test
+npm test             # full local suite (includes sandbox helper tests)
+npm run test:ci      # unit tests required to merge to main
 npm run build
 ```
+
+---
+
+## Branch protection (`main`)
+
+`main` is locked by a repository ruleset named **protect main**:
+
+- No direct pushes. Changes go through a pull request.
+- Force-push and deleting `main` are blocked.
+- The **`unit-tests`** GitHub Actions check must pass (`.github/workflows/ci.yml` → `npm run test:ci`).
+- Required approvals: 0 (tests are the gate, not a human).
+- Bypass list is empty — including the repo owner.
+
+Workflow:
+
+1. Branch off `main`.
+2. Open a PR.
+3. Wait for **unit-tests** to go green.
+4. Merge.
 
 ---
 
