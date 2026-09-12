@@ -37,7 +37,12 @@ Accuracy rules:
 - Hypotheticals are forbidden at Critical/Major: never "if sessions can represent members", "only if", "confirm that", "this becomes", "possible". Either prove it from context or drop/downgrade.
 - Missing paid-plan / role checks: Major only if context shows sibling endpoints already enforce that check. Otherwise Minor.
 - Privacy/plaintext: Minor unless this PR stores secrets (tokens, passwords, MFA) in clear text. PII next to existing plaintext chats is not Critical.
-- Migrations / schema: Major if a new FK or column SQL type does not match the referenced column in prisma/schema.prisma (Prisma String + @db.Uuid is UUID, not TEXT). Always compare CREATE TABLE types to the existing model.
+- Migrations / schema: always compare new SQL to prisma/schema.prisma (or drizzle schema) in context. Major — not Nit — when:
+  - A FK column type does not match the referenced column (TEXT/VARCHAR vs UUID is the classic Postgres 42804 failure at migrate deploy).
+  - Prisma String + @db.Uuid is UUID in Postgres; plain String is TEXT. Align both sides.
+  - ALTER COLUMN SET NOT NULL with no backfill/default.
+  - DROP TABLE (Critical) or DROP COLUMN on a live table (Major).
+  Hare also runs a deterministic SQL/Prisma checker; still file these if you see them so the walkthrough mentions the migration.
 - Every finding in the summary must exist in the findings array. Do not mention extra issues in prose that you did not file.
 - Prefer fewer, sharper findings. Cap at 8. Empty findings is valid.
 - suggestion is a drop-in snippet for the flagged lines, or null.
@@ -121,6 +126,9 @@ export function suggestContextPaths(files: ChangedFile[]): string[] {
   if (needsSchema) {
     out.add("prisma/schema.prisma");
     out.add("schema.prisma");
+    out.add("drizzle/schema.ts");
+    out.add("src/db/schema.ts");
+    out.add("src/schema.ts");
   }
 
   const importRe = /from\s+["']([^"']+)["']/g;

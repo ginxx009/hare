@@ -263,7 +263,7 @@ migrations/
 These are the misses Hare was tightened against:
 
 1. **False Major on `session.user.id` as tenant** — many apps *are* that mapping. Hare now loads auth helpers before filing a Major, and demotes hypotheticals.
-2. **Prisma `String` vs Postgres `UUID`** — a `TEXT` FK against `tenants.id UUID` ships and then dies at `prisma migrate deploy`. Hare now always loads `prisma/schema.prisma` when a migration is in the diff and treats type mismatch as Major.
+2. **Prisma `String` vs Postgres `UUID`** — a `TEXT` FK against `tenants.id UUID` ships and then dies at `prisma migrate deploy`. Hare now **parses the SQL + `schema.prisma` itself** (not only the LLM): TEXT/VARCHAR referencing UUID is a Major, same for SET NOT NULL without a default, DROP COLUMN, and DROP TABLE.
 3. **404 on PR files** — fine-grained PAT missing Contents, or resource owner set to the bot user instead of the org. GitHub returns 404 on private repos instead of 403.
 
 Hare will still miss things. The bar is “no false Majors, catch schema/auth defects that are in the diff + context,” not 100%.
