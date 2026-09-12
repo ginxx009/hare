@@ -35,6 +35,7 @@ import {
   runGrokReview,
   suggestContextPaths,
 } from "./reviewer";
+import { mergeMigrationFindings, scanMigrationIssues } from "./migrations";
 import type { ChangedFile, ReviewerOutput } from "./types";
 
 export function newSecret(): string {
@@ -359,10 +360,12 @@ export async function reviewPullForUser(input: {
     const previous = await getPreviousCompleteReview(pr.id, headSha);
     let contextFiles: Array<{ path: string; content: string }> = [];
     if (token) {
-      const wanted = suggestContextPaths(files);
+      const wanted = suggestContextPaths(files).sort(
+        (a, b) => Number(/schema\.prisma$/i.test(b)) - Number(/schema\.prisma$/i.test(a)),
+      );
       const loaded: Array<{ path: string; content: string }> = [];
       for (const path of wanted) {
-        if (loaded.length >= 6) break;
+        if (loaded.length >= 8) break;
         const content = await getFileAtRef(token, owner, repo, path, headSha);
         if (content && content.length > 40) {
           loaded.push({ path, content });
@@ -387,7 +390,10 @@ export async function reviewPullForUser(input: {
     });
 
     const raw = await runGrokReview(prompt);
-    const output = normalizeReviewerOutput(raw, files, diff);
+    const output = mergeMigrationFindings(
+      normalizeReviewerOutput(raw, files, diff),
+      scanMigrationIssues({ files, diff, contextFiles }),
+    );
 
     let posted = false;
     let postError: string | null = null;
