@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { findWatched } from "@/lib/hare/db";
 import { getPull } from "@/lib/hare/github";
-import { getConnection } from "@/lib/hare/db";
-import { runReviewFromWebhook, userIdForActionSecret } from "@/lib/hare/server";
+import { getConnection, upsertPull } from "@/lib/hare/db";
+import { enqueueReview } from "@/lib/hare/queue";
+import { userIdForActionSecret } from "@/lib/hare/server";
 
 async function post({ request }: { request: Request }) {
   const secret = request.headers.get("x-hare-secret")?.trim();
@@ -34,29 +35,28 @@ async function post({ request }: { request: Request }) {
     return Response.json({ ok: false, message: "GitHub is not connected" }, { status: 400 });
   }
   const pr = await getPull(conn.token, owner, repo, number);
-  const result = await runReviewFromWebhook({
-    userId,
+  await upsertPull(userId, {
     owner,
     repo,
     number,
-    pull: {
-      title: pr.title,
-      body: pr.body,
-      author: pr.user?.login ?? "unknown",
-      state: pr.state,
-      draft: Boolean(pr.draft),
-      htmlUrl: pr.html_url,
-      headSha: pr.head.sha,
-      baseSha: pr.base.sha,
-      headRef: pr.head.ref,
-      baseRef: pr.base.ref,
-      additions: pr.additions ?? 0,
-      deletions: pr.deletions ?? 0,
-      changedFiles: pr.changed_files ?? 0,
-      updatedAt: pr.updated_at,
-    },
+    title: pr.title,
+    body: pr.body,
+    author: pr.user?.login ?? "unknown",
+    state: pr.state,
+    draft: Boolean(pr.draft),
+    htmlUrl: pr.html_url,
+    headSha: pr.head.sha,
+    baseSha: pr.base.sha,
+    headRef: pr.head.ref,
+    baseRef: pr.base.ref,
+    additions: pr.additions ?? 0,
+    deletions: pr.deletions ?? 0,
+    changedFiles: pr.changed_files ?? 0,
+    isDemo: false,
+    githubUpdatedAt: pr.updated_at,
   });
-  return Response.json(result, { status: result.ok ? 200 : 500 });
+  enqueueReview({ userId, owner, repo, number });
+  return Response.json({ ok: true, queued: true, number });
 }
 
 export const Route = createFileRoute("/api/github/action")({

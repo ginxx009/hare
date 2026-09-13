@@ -23,6 +23,7 @@ import {
   reviewPullForUser,
   seedDemoReview,
 } from "./engine";
+import { mapPool } from "./queue";
 import {
   getAuthenticatedUser,
   getPullDiff,
@@ -31,7 +32,7 @@ import {
   listUserRepos,
 } from "./github";
 
-const MAX_AUTO_REVIEWS = 3;
+const REVIEW_CONCURRENCY = 4;
 
 export const getDashboard = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -226,15 +227,13 @@ export const syncInbox = createServerFn({ method: "POST" })
       }
     }
 
-    let reviewed = 0;
-    for (const item of pending) {
-      if (reviewed >= MAX_AUTO_REVIEWS) break;
-      const result = await reviewPullForUser({
+    const results = await mapPool(pending, REVIEW_CONCURRENCY, (item) =>
+      reviewPullForUser({
         userId: context.userId,
         ...item,
-      });
-      if (result.ok) reviewed += 1;
-    }
+      }),
+    );
+    const reviewed = results.filter((r) => r.ok).length;
 
     return { ok: true as const, reviewed, pulled, errors };
   });
