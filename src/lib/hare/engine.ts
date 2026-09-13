@@ -36,6 +36,7 @@ import {
   suggestContextPaths,
 } from "./reviewer";
 import { mergeMigrationFindings, scanMigrationIssues } from "./migrations";
+import { isStaleRunning } from "./queue";
 import type { ChangedFile, ReviewerOutput } from "./types";
 
 export function newSecret(): string {
@@ -261,7 +262,10 @@ export async function reviewPullForUser(input: {
 
   if (!input.force) {
     const existing = await getReviewBySha(pr.id, pr.head_sha);
-    if (existing?.status === "complete" || existing?.status === "running") {
+    if (existing?.status === "complete") {
+      return { ok: true };
+    }
+    if (existing?.status === "running" && !isStaleRunning(existing.createdAt)) {
       return { ok: true };
     }
   }

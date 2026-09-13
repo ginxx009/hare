@@ -37,6 +37,8 @@ Hare is a CodeRabbit-style reviewer you host yourself:
    - Posts a walkthrough + inline findings as the bot user
    - Sets the **`Hare`** commit status (`success` or `failure`)
 
+Webhooks return immediately and reviews run on a queue (up to 4 PRs in parallel). Sync reviews every open PR on watched repos, not a cap of 3.
+
 Findings are graded:
 
 | Severity | Meaning | Merge gate |

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { findWatchedByRepo } from "./db";
-import { runReviewFromWebhook } from "./server";
+import { findWatchedByRepo, upsertPull } from "./db";
+import { enqueueReview } from "./queue";
 
 export function verifyGithubSignature(
   secret: string,
@@ -80,33 +80,37 @@ export async function handleGithubWebhook(
     return { status: 401, body: { ok: false, message: "invalid signature" } };
   }
 
-  let ran = 0;
+  let queued = 0;
   for (const watcher of targets) {
     if (!watcher.autoReview) continue;
-    await runReviewFromWebhook({
+    await upsertPull(watcher.userId, {
+      owner,
+      repo,
+      number: pr.number,
+      title: pr.title,
+      body: pr.body,
+      author: pr.user?.login ?? "unknown",
+      state: pr.state,
+      draft: Boolean(pr.draft),
+      htmlUrl: pr.html_url,
+      headSha: pr.head.sha,
+      baseSha: pr.base.sha,
+      headRef: pr.head.ref,
+      baseRef: pr.base.ref,
+      additions: pr.additions ?? 0,
+      deletions: pr.deletions ?? 0,
+      changedFiles: pr.changed_files ?? 0,
+      isDemo: false,
+      githubUpdatedAt: pr.updated_at ?? new Date().toISOString(),
+    });
+    enqueueReview({
       userId: watcher.userId,
       owner,
       repo,
       number: pr.number,
-      pull: {
-        title: pr.title,
-        body: pr.body,
-        author: pr.user?.login ?? "unknown",
-        state: pr.state,
-        draft: Boolean(pr.draft),
-        htmlUrl: pr.html_url,
-        headSha: pr.head.sha,
-        baseSha: pr.base.sha,
-        headRef: pr.head.ref,
-        baseRef: pr.base.ref,
-        additions: pr.additions ?? 0,
-        deletions: pr.deletions ?? 0,
-        changedFiles: pr.changed_files ?? 0,
-        updatedAt: pr.updated_at ?? new Date().toISOString(),
-      },
     });
-    ran += 1;
+    queued += 1;
   }
 
-  return { status: 200, body: { ok: true, message: `reviewed ${ran}` } };
+  return { status: 200, body: { ok: true, message: `queued ${queued}` } };
 }
