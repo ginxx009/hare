@@ -56,6 +56,12 @@ Accuracy rules the reviewer follows:
 - Prisma/SQL foreign keys must match the referenced column type (for example `UUID` vs `TEXT`).
 - Every finding must sit on a real changed line.
 
+### Project brief (`HARE.md`)
+
+Hare does not clone your whole tree. Put a short **`HARE.md`** at the repo root (see [docs/HARE.example.md](docs/HARE.example.md)). It is loaded **before** the diff review and treated as project law.
+
+Do **not** point Hare at CLAUDE workspace profiles or `.cursor/rules/constitution.mdc` — those drift and are often not even in the git repo. Write facts about the current tree only.
+
 ---
 
 ## Screens
