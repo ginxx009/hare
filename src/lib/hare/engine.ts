@@ -35,7 +35,7 @@ import {
   runGrokReview,
   suggestContextPaths,
 } from "./reviewer";
-import { contextLoadOrder } from "./briefs";
+import { contextLoadOrder, isProjectBrief } from "./briefs";
 import { mergeMigrationFindings, scanMigrationIssues } from "./migrations";
 import { isStaleRunning } from "./queue";
 import type { ChangedFile, ReviewerOutput } from "./types";
@@ -372,7 +372,9 @@ export async function reviewPullForUser(input: {
       for (const path of wanted) {
         if (loaded.length >= 8) break;
         const content = await getFileAtRef(token, owner, repo, path, headSha);
-        if (content && content.length > 40) {
+        if (!content) continue;
+        const minLen = isProjectBrief(path) ? 20 : 40;
+        if (content.length > minLen) {
           loaded.push({ path, content });
         }
       }

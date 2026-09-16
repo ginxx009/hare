@@ -56,11 +56,13 @@ Accuracy rules the reviewer follows:
 - Prisma/SQL foreign keys must match the referenced column type (for example `UUID` vs `TEXT`).
 - Every finding must sit on a real changed line.
 
-### Project brief (`HARE.md`)
+### Project brief (`.github/claude/SYSTEM_PROFILE.md`)
 
-Hare does not clone your whole tree. Put a short **`HARE.md`** at the repo root (see [docs/HARE.example.md](docs/HARE.example.md)). It is loaded **before** the diff review and treated as project law.
+On each review Hare tries to load **`.github/claude/SYSTEM_PROFILE.md`** from the PR head. If it exists, that file is the project brief (what this repo is, CI stamps, study hash). If it is missing, Hare continues with the normal diff-only review — it does not fail.
 
-Do **not** point Hare at CLAUDE workspace profiles or `.cursor/rules/constitution.mdc` — those drift and are often not even in the git repo. Write facts about the current tree only.
+Optional extras, loaded after the profile if present: `HARE.md`, `.hare.md`, `docs/HARE.md`.
+
+Hare does **not** read CLAUDE workspace profiles or `.cursor/rules/constitution.mdc`.
 
 ---
 

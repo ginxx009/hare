@@ -32,7 +32,8 @@ Severity (strict):
 - Nit: naming, enums, comments. Sparingly.
 
 Accuracy rules:
-- If a HARE.md (or .hare.md) is in repo context, treat it as project law for this review. It beats generic habits. Do not invent rules from CLAUDE workspace profiles or constitution.mdc — those are not this repo.
+- If .github/claude/SYSTEM_PROFILE.md is in repo context, treat it as the project brief for this repo. It beats generic habits. If it is missing, review the diff with the normal rules — do not fail the review.
+- Do not invent rules from CLAUDE workspace profiles or constitution.mdc (those are not in this git repo).
 - Review the diff first. Use repo context files only to verify conventions, not to invent extra scope.
 - Cite real paths and NEW-file (right-hand) line numbers from the diff. If you cannot point at a changed line, omit the finding.
 - Do not file Critical/Major on a pattern that sibling/context files already use (example: session.user.id is the tenant id everywhere). At most a Nit asking for a comment.
@@ -190,7 +191,7 @@ export function buildReviewPrompt(input: {
     .join("\n\n");
 
   const contextBlock = context
-    ? `\nRepo context. HARE.md (if present) is project law. Other files are conventions only — not part of this diff:\n${context}\n`
+    ? `\nRepo context. .github/claude/SYSTEM_PROFILE.md (if present) is the project brief. Other files are conventions only — not part of this diff. If no brief is present, review the diff with default rules:\n${context}\n`
     : "";
 
   return `Repository: ${input.owner}/${input.repo}
