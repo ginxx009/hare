@@ -35,6 +35,7 @@ import {
   runGrokReview,
   suggestContextPaths,
 } from "./reviewer";
+import { contextLoadOrder } from "./briefs";
 import { mergeMigrationFindings, scanMigrationIssues } from "./migrations";
 import { isStaleRunning } from "./queue";
 import type { ChangedFile, ReviewerOutput } from "./types";
@@ -365,7 +366,7 @@ export async function reviewPullForUser(input: {
     let contextFiles: Array<{ path: string; content: string }> = [];
     if (token) {
       const wanted = suggestContextPaths(files).sort(
-        (a, b) => Number(/schema\.prisma$/i.test(b)) - Number(/schema\.prisma$/i.test(a)),
+        (a, b) => contextLoadOrder(a) - contextLoadOrder(b),
       );
       const loaded: Array<{ path: string; content: string }> = [];
       for (const path of wanted) {

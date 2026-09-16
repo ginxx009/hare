@@ -1,6 +1,7 @@
 import { parseUnifiedDiff, snapToChangedLine, truncateDiff } from "./diff";
 import { shouldIgnorePath } from "./ignore";
 import type { ChangedFile, ReviewerOutput, Severity } from "./types";
+import { PROJECT_BRIEF_PATHS } from "./briefs";
 
 const SEVERITIES: Severity[] = ["critical", "major", "minor", "nit"];
 
@@ -31,6 +32,7 @@ Severity (strict):
 - Nit: naming, enums, comments. Sparingly.
 
 Accuracy rules:
+- If a HARE.md (or .hare.md) is in repo context, treat it as project law for this review. It beats generic habits. Do not invent rules from CLAUDE workspace profiles or constitution.mdc — those are not this repo.
 - Review the diff first. Use repo context files only to verify conventions, not to invent extra scope.
 - Cite real paths and NEW-file (right-hand) line numbers from the diff. If you cannot point at a changed line, omit the finding.
 - Do not file Critical/Major on a pattern that sibling/context files already use (example: session.user.id is the tenant id everywhere). At most a Nit asking for a comment.
@@ -98,7 +100,7 @@ function resolveRelative(fromFile: string, spec: string): string | null {
 
 /** Auth/session helpers and local imports the model must read before filing Majors. */
 export function suggestContextPaths(files: ChangedFile[]): string[] {
-  const out = new Set<string>();
+  const out = new Set<string>(PROJECT_BRIEF_PATHS);
   const needsAuthContext = files.some(
     (f) =>
       /(?:^|\/)(route|api)\.[jt]sx?$/.test(f.path) ||
@@ -183,12 +185,12 @@ export function buildReviewPrompt(input: {
     : "";
 
   const context = (input.contextFiles ?? [])
-    .slice(0, 6)
+    .slice(0, 8)
     .map((f) => `### ${f.path}\n\`\`\`\n${f.content.slice(0, 8000)}\n\`\`\``)
     .join("\n\n");
 
   const contextBlock = context
-    ? `\nRepo context (conventions only — not part of this diff). If the PR copies these patterns, do not file Critical/Major:\n${context}\n`
+    ? `\nRepo context. HARE.md (if present) is project law. Other files are conventions only — not part of this diff:\n${context}\n`
     : "";
 
   return `Repository: ${input.owner}/${input.repo}
