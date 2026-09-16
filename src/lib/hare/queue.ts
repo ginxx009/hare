@@ -39,7 +39,15 @@ export function isStaleRunning(createdAt: string | null | undefined): boolean {
 export function enqueueReview(job: ReviewJob): boolean {
   const s = state();
   const key = jobKey(job);
-  if (s.inflight.has(key) || s.pending.some((p) => jobKey(p) === key)) return false;
+  const waiting = s.pending.find((p) => jobKey(p) === key);
+  if (waiting) {
+    if (job.force) waiting.force = true;
+    return false;
+  }
+  if (s.inflight.has(key)) {
+    if (job.force) s.pending.push({ ...job, force: true });
+    return job.force === true;
+  }
   s.pending.push(job);
   pump();
   return true;
