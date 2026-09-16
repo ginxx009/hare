@@ -154,10 +154,15 @@ Repo → **Settings** → **Webhooks** → **Add webhook**
 | Content type | **`application/json`** (not `x-www-form-urlencoded`) |
 | Secret | Copy from Hare Settings for that watched repo |
 | SSL | Enable |
-| Events | **Let me select individual events** → **Pull requests** only |
+| Events | **Let me select individual events** → **Pull requests** and **Issue comments** |
 | Active | On |
 
-`Just the push event` is ignored. Hare only handles `pull_request` actions: `opened`, `synchronize`, `reopened`, `ready_for_review`.
+`Just the push event` is ignored. Hare handles:
+
+- `pull_request`: `opened`, `synchronize`, `reopened`, `ready_for_review`
+- `issue_comment` / `pull_request_review_comment`: a comment that mentions **`@hare-bot`** (re-review, `force`). Comments from `hare-bot` itself are ignored so reviews do not loop.
+
+On GitHub, comment `@hare-bot please re-review` on the PR Conversation tab to run again on the current HEAD.
 
 After save, GitHub sends a `ping`. A green check means the secret and URL are correct.
 
@@ -243,7 +248,7 @@ src/
     engine.ts         Orchestrates load → review → post → status
     reviewer.ts       Prompt, context paths, accuracy filters
     github.ts         GitHub REST (PRs, files, reviews, statuses)
-    webhook.ts        HMAC verification + pull_request dispatch
+    webhook.ts        HMAC + pull_request + @hare-bot comment dispatch
     format.ts         Review markdown, Hare gate, REQUEST_CHANGES
     db.ts             Watched repos, PRs, reviews, findings
   routes/

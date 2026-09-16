@@ -128,7 +128,7 @@ jobs:
       <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5">
         <h2 className="font-medium">Webhook</h2>
         <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
-          After you publish this app, add a repository webhook for Pull requests pointing at this URL. Use the secret shown for a watched repo.
+          After you publish this app, add a repository webhook pointing at this URL. Enable **Pull requests** and **Issue comments**. Use the secret shown for a watched repo.
         </p>
         <div className="mt-3 flex flex-col gap-2">
           <button
