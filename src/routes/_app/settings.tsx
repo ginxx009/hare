@@ -55,19 +55,36 @@ function SettingsPage() {
   const workflow = `name: hare-review
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, review_requested]
+  issue_comment:
+    types: [created]
+  schedule:
+    - cron: "*/10 * * * *"
 jobs:
   review:
+    if: |
+      github.event_name == 'pull_request' ||
+      github.event_name == 'schedule' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@hare-bot'))
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
-      - name: Request Hare review
+      - name: Run Hare review
         env:
           HARE_SECRET: \${{ secrets.HARE_SECRET }}
         run: |
-          curl -sS -X POST "${actionUrl}" \\
-            -H "Content-Type: application/json" \\
-            -H "X-Hare-Secret: $HARE_SECRET" \\
-            -d '{"owner":"\${{ github.repository_owner }}","repo":"\${{ github.event.repository.name }}","pull_number":\${{ github.event.pull_request.number }}}'
+          set -euo pipefail
+          if [ "\${{ github.event_name }}" = "schedule" ]; then
+            curl -sS --fail-with-body --max-time 300 -X POST "${actionUrl}" \\
+              -H "Content-Type: application/json" \\
+              -H "X-Hare-Secret: $HARE_SECRET" \\
+              -d '{"drain":true}'
+          else
+            curl -sS --fail-with-body --max-time 300 -X POST "${actionUrl}" \\
+              -H "Content-Type: application/json" \\
+              -H "X-Hare-Secret: $HARE_SECRET" \\
+              -d '{"owner":"\${{ github.repository_owner }}","repo":"\${{ github.event.repository.name }}","pull_number":\${{ github.event.pull_request.number || github.event.issue.number }}}'
+          fi
 `;
 
   return (
@@ -128,7 +145,10 @@ jobs:
       <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5">
         <h2 className="font-medium">Webhook</h2>
         <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
-          After you publish this app, add a repository webhook pointing at this URL. Enable **Pull requests** and **Issue comments**. Use the secret shown for a watched repo.
+          After you publish this app, add a repository webhook pointing at this URL. Enable{" "}
+          <strong>Pull requests</strong> and <strong>Issue comments</strong>. Use the secret shown
+          for a watched repo. Prefer the GitHub Action below so reviews finish even if the webhook
+          times out — you should not need to open Hare and click Sync.
         </p>
         <div className="mt-3 flex flex-col gap-2">
           <button
@@ -157,7 +177,10 @@ jobs:
       <section className="rounded-[var(--radius-xl)] border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5">
         <h2 className="font-medium">GitHub Action</h2>
         <p className="mt-2 text-sm text-[var(--color-fg-muted)]">
-          Store <span className="font-[family-name:var(--font-mono)] text-xs">HARE_SECRET</span> as a repo secret, then add this workflow.
+          Store <span className="font-[family-name:var(--font-mono)] text-xs">HARE_SECRET</span> as
+          a repo secret, then add this workflow. The job{" "}
+          <strong>waits until Hare posts the review</strong> (up to 5 minutes). A 10-minute cron
+          catches anything the webhook missed.
         </p>
         {connection ? (
           <button

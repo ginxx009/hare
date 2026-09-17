@@ -37,7 +37,7 @@ Hare is a CodeRabbit-style reviewer you host yourself:
    - Posts a walkthrough + inline findings as the bot user
    - Sets the **`Hare`** commit status (`success` or `failure`)
 
-Webhooks return immediately and reviews run on a queue (up to 4 PRs in parallel). Sync reviews every open PR on watched repos, not a cap of 3.
+Webhooks and the GitHub Action **wait until the review is posted** (up to 4 PRs in parallel). You should not need to open Hare and click Sync. A 10-minute Action cron drains any PR the webhook missed.
 
 Findings are graded:
 
@@ -167,14 +167,16 @@ Repo → **Settings** → **Webhooks** → **Add webhook**
 
 `Just the push event` is ignored. Hare handles:
 
-- `pull_request`: `opened`, `synchronize`, `reopened`, `ready_for_review`
+- `pull_request`: `opened`, `synchronize`, `reopened`, `ready_for_review`, `review_requested` (when the reviewer is **hare-bot**)
 - `issue_comment` / `pull_request_review_comment`: a comment that mentions **`@hare-bot`** (re-review, `force`). Comments from `hare-bot` itself are ignored so reviews do not loop.
 
 On GitHub, comment `@hare-bot please re-review` on the PR Conversation tab to run again on the current HEAD.
 
 After save, GitHub sends a `ping`. A green check means the secret and URL are correct.
 
-Without a webhook you can still **Sync** the inbox or click **Re-review** on a pull.
+**GitHub Action (recommended):** paste the workflow from Hare Settings and set `HARE_SECRET`. The job waits for the review to finish, so you do not open the Hare UI. A schedule drain every 10 minutes catches dropped webhooks.
+
+Without a webhook or Action you can still **Sync** the inbox or click **Re-review** on a pull.
 
 ---
 

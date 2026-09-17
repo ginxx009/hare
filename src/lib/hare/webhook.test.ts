@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { isBotCommentAuthor, mentionsHareBot } from "./mention.ts";
+import { isBotCommentAuthor, mentionsHareBot, shouldHandlePullAction } from "./mention.ts";
 
 describe("mentionsHareBot", () => {
   it("matches a conversation ping", () => {
@@ -25,5 +25,19 @@ describe("isBotCommentAuthor", () => {
     assert.equal(isBotCommentAuthor("hare-bot"), true);
     assert.equal(isBotCommentAuthor("Hare-Bot"), true);
     assert.equal(isBotCommentAuthor("ginxx009"), false);
+  });
+});
+
+describe("shouldHandlePullAction", () => {
+  it("reviews opened and synchronize", () => {
+    assert.equal(shouldHandlePullAction("opened"), true);
+    assert.equal(shouldHandlePullAction("synchronize"), true);
+  });
+  it("reviews when hare-bot is requested", () => {
+    assert.equal(shouldHandlePullAction("review_requested", "hare-bot"), true);
+    assert.equal(shouldHandlePullAction("review_requested", "octocat"), false);
+  });
+  it("ignores labeled", () => {
+    assert.equal(shouldHandlePullAction("labeled"), false);
   });
 });

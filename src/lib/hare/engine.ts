@@ -37,7 +37,7 @@ import {
 } from "./reviewer";
 import { contextLoadOrder, isProjectBrief } from "./briefs";
 import { mergeMigrationFindings, scanMigrationIssues } from "./migrations";
-import { isStaleRunning } from "./queue";
+import { isStaleRunning, mapPool } from "./queue";
 import type { ChangedFile, ReviewerOutput } from "./types";
 
 export function newSecret(): string {
@@ -313,20 +313,34 @@ export async function reviewPullForUser(input: {
       const ignoreGlobs = watched?.ignoreGlobs ?? "";
       autoPost = watched?.autoPost ?? true;
       const previousForDiff = await getPreviousCompleteReview(pr.id, pr.head_sha);
-      const bundle = await loadDiffBundle(
-        conn.token,
-        owner,
-        repo,
-        number,
-        ignoreGlobs,
-        previousForDiff?.headSha ?? null,
-        pr.head_sha,
-      );
+      const [live, firstBundle] = await Promise.all([
+        getPull(conn.token, owner, repo, number),
+        loadDiffBundle(
+          conn.token,
+          owner,
+          repo,
+          number,
+          ignoreGlobs,
+          previousForDiff?.headSha ?? null,
+          pr.head_sha,
+        ),
+      ]);
+      let bundle = firstBundle;
+      if (live.head.sha !== pr.head_sha) {
+        bundle = await loadDiffBundle(
+          conn.token,
+          owner,
+          repo,
+          number,
+          ignoreGlobs,
+          previousForDiff?.headSha ?? null,
+          live.head.sha,
+        );
+      }
       diff = bundle.diff;
       files = bundle.files;
       incremental = bundle.incremental;
 
-      const live = await getPull(conn.token, owner, repo, number);
       headSha = live.head.sha;
       title = live.title;
       body = live.body;
@@ -365,20 +379,20 @@ export async function reviewPullForUser(input: {
     const previous = await getPreviousCompleteReview(pr.id, headSha);
     let contextFiles: Array<{ path: string; content: string }> = [];
     if (token) {
-      const wanted = suggestContextPaths(files).sort(
-        (a, b) => contextLoadOrder(a) - contextLoadOrder(b),
-      );
-      const loaded: Array<{ path: string; content: string }> = [];
-      for (const path of wanted) {
-        if (loaded.length >= 8) break;
-        const content = await getFileAtRef(token, owner, repo, path, headSha);
-        if (!content) continue;
+      const ghToken = token;
+      const wanted = suggestContextPaths(files)
+        .sort((a, b) => contextLoadOrder(a) - contextLoadOrder(b))
+        .slice(0, 8);
+      const loaded = await mapPool(wanted, 4, async (path) => {
+        const content = await getFileAtRef(ghToken, owner, repo, path, headSha);
+        if (!content) return null;
         const minLen = isProjectBrief(path) ? 20 : 40;
-        if (content.length > minLen) {
-          loaded.push({ path, content });
-        }
-      }
-      contextFiles = loaded;
+        if (content.length <= minLen) return null;
+        return { path, content };
+      });
+      contextFiles = loaded.filter(
+        (f): f is { path: string; content: string } => Boolean(f),
+      );
     }
     const prompt = buildReviewPrompt({
       owner,
