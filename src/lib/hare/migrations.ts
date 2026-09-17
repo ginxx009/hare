@@ -263,14 +263,16 @@ export function scanMigrationIssues(input: {
   contextFiles?: Array<{ path: string; content: string }>;
 }): MigrationFinding[] {
   const findings: MigrationFinding[] = [];
-  const schemaText = [
-    ...(input.contextFiles ?? [])
-      .filter((f) => /schema\.prisma$/i.test(f.path))
-      .map((f) => f.content),
-    ...input.files
-      .filter((f) => /schema\.prisma$/i.test(f.path))
-      .map((f) => newFileContent(f, input.diff)),
-  ].join("\n");
+  const schemaFromHead = (input.contextFiles ?? [])
+    .filter((f) => /schema\.prisma$/i.test(f.path))
+    .map((f) => f.content)
+    .find((c) => c.trim().length > 0);
+  const schemaFromDiff = input.files
+    .filter((f) => /schema\.prisma$/i.test(f.path))
+    .map((f) => newFileContent(f, input.diff))
+    .find((c) => c.trim().length > 0);
+  // HEAD file beats a truncated GitHub patch. Concatenating let the patch overwrite @db.Uuid.
+  const schemaText = schemaFromHead || schemaFromDiff || "";
   const prisma = schemaText ? parsePrismaSchema(schemaText) : new Map<string, PrismaModel>();
 
   const sqlByTable = new Map<string, SqlTable>();

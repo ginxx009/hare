@@ -115,6 +115,45 @@ describe("scanMigrationIssues", () => {
     assert.equal(findings[0]?.severity, "critical");
   });
 
+  it("prefers HEAD schema over a truncated PR patch (JOSIE #93)", () => {
+    const sqlPath = "prisma/migrations/20260917000002_agent_key_sessions/migration.sql";
+    const sql = `CREATE TABLE "agent_key_sessions" (
+  "id" UUID NOT NULL,
+  "api_key_id" UUID NOT NULL,
+  CONSTRAINT "agent_key_sessions_pkey" PRIMARY KEY ("id")
+);`;
+    const headSchema = `
+model AgentKeySession {
+  id       String @id @default(uuid()) @db.Uuid
+  apiKeyId String @unique @map("api_key_id") @db.Uuid
+  @@map("agent_key_sessions")
+}
+`;
+    const truncatedPatch = `
+model AgentKeySession {
+  id       String @id @default(uuid())
+  apiKeyId String @unique @map("api_key_id")
+  @@map("agent_key_sessions")
+}
+`;
+    const findings = scanMigrationIssues({
+      files: [
+        { path: sqlPath, status: "added", additions: 6, deletions: 0 },
+        { path: "prisma/schema.prisma", status: "modified", additions: 20, deletions: 0 },
+      ],
+      diff:
+        diffFor(sqlPath, sql) +
+        "\n" +
+        diffFor("prisma/schema.prisma", truncatedPatch),
+      contextFiles: [{ path: "prisma/schema.prisma", content: headSchema }],
+    });
+    assert.equal(
+      findings.filter((f) => /does not match Prisma String/i.test(f.title)).length,
+      0,
+      JSON.stringify(findings),
+    );
+  });
+
   it("flags SET NOT NULL without default", () => {
     const path = "prisma/migrations/20260102_nn/migration.sql";
     const sql = `ALTER TABLE "users" ALTER COLUMN "email" SET NOT NULL;`;
