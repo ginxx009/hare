@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { findWatchedByRepo, getConnection, upsertPull } from "./db";
 import { getPull } from "./github";
-import { isBotCommentAuthor, mentionsHareBot } from "./mention";
-import { enqueueReview } from "./queue";
+import { isBotCommentAuthor, mentionsHareBot, shouldHandlePullAction } from "./mention";
+import { enqueueAndWait, mapPool } from "./queue";
 
 export function verifyGithubSignature(
   secret: string,
@@ -39,7 +39,6 @@ type GhWebhookPull = {
   updated_at?: string;
 };
 
-const PR_ACTIONS = new Set(["opened", "synchronize", "reopened", "ready_for_review"]);
 const COMMENT_EVENTS = new Set(["issue_comment", "pull_request_review_comment"]);
 
 async function queueWatchers(input: {
@@ -59,39 +58,48 @@ async function queueWatchers(input: {
     return { status: 401, queued: 0, message: "invalid signature" };
   }
 
-  let queued = 0;
-  for (const watcher of matched) {
-    if (!watcher.autoReview) continue;
-    await upsertPull(watcher.userId, {
-      owner: input.owner,
-      repo: input.repo,
-      number: input.number,
-      title: input.pull.title,
-      body: input.pull.body,
-      author: input.pull.user?.login ?? "unknown",
-      state: input.pull.state,
-      draft: Boolean(input.pull.draft),
-      htmlUrl: input.pull.html_url,
-      headSha: input.pull.head.sha,
-      baseSha: input.pull.base.sha,
-      headRef: input.pull.head.ref,
-      baseRef: input.pull.base.ref,
-      additions: input.pull.additions ?? 0,
-      deletions: input.pull.deletions ?? 0,
-      changedFiles: input.pull.changed_files ?? 0,
-      isDemo: false,
-      githubUpdatedAt: input.pull.updated_at ?? new Date().toISOString(),
-    });
-    enqueueReview({
-      userId: watcher.userId,
-      owner: input.owner,
-      repo: input.repo,
-      number: input.number,
-      force: input.force,
-    });
-    queued += 1;
-  }
-  return { status: 200, queued, message: `queued ${queued}` };
+  const results = await mapPool(
+    matched.filter((w) => w.autoReview),
+    2,
+    async (watcher) => {
+      await upsertPull(watcher.userId, {
+        owner: input.owner,
+        repo: input.repo,
+        number: input.number,
+        title: input.pull.title,
+        body: input.pull.body,
+        author: input.pull.user?.login ?? "unknown",
+        state: input.pull.state,
+        draft: Boolean(input.pull.draft),
+        htmlUrl: input.pull.html_url,
+        headSha: input.pull.head.sha,
+        baseSha: input.pull.base.sha,
+        headRef: input.pull.head.ref,
+        baseRef: input.pull.base.ref,
+        additions: input.pull.additions ?? 0,
+        deletions: input.pull.deletions ?? 0,
+        changedFiles: input.pull.changed_files ?? 0,
+        isDemo: false,
+        githubUpdatedAt: input.pull.updated_at ?? new Date().toISOString(),
+      });
+      return enqueueAndWait({
+        userId: watcher.userId,
+        owner: input.owner,
+        repo: input.repo,
+        number: input.number,
+        force: input.force,
+      });
+    },
+  );
+  const queued = results.filter((r) => r.ok).length;
+  const firstError = results.find((r) => !r.ok)?.error;
+  return {
+    status: 200,
+    queued,
+    message: firstError
+      ? `reviewed ${queued}: ${firstError}`
+      : `reviewed ${queued}`,
+  };
 }
 
 export async function handleGithubWebhook(
@@ -121,7 +129,10 @@ export async function handleGithubWebhook(
 
   if (!eventName || eventName === "pull_request") {
     const action = String(data.action ?? "");
-    if (!PR_ACTIONS.has(action)) {
+    const requestedLogin = (
+      data.requested_reviewer as { login?: string } | undefined
+    )?.login;
+    if (!shouldHandlePullAction(action, requestedLogin)) {
       return { status: 200, body: { ok: true, message: "ignored action" } };
     }
     const pr = data.pull_request as GhWebhookPull | undefined;

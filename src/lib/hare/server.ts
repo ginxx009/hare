@@ -23,7 +23,7 @@ import {
   reviewPullForUser,
   seedDemoReview,
 } from "./engine";
-import { mapPool } from "./queue";
+import { mapPool, enqueueAndWait } from "./queue";
 import {
   getAuthenticatedUser,
   getPullDiff,
@@ -33,6 +33,73 @@ import {
 } from "./github";
 
 const REVIEW_CONCURRENCY = 4;
+
+export async function drainWatchedReviews(userId: string): Promise<{
+  ok: true;
+  reviewed: number;
+  pulled: number;
+  errors: string[];
+}> {
+  const conn = await getConnection(userId);
+  if (!conn) {
+    return { ok: true, reviewed: 0, pulled: 0, errors: [] };
+  }
+  const watched = await listWatched(userId);
+  let pulled = 0;
+  const pending: Array<{ owner: string; repo: string; number: number }> = [];
+  const errors: string[] = [];
+
+  for (const repo of watched) {
+    try {
+      const pulls = await listOpenPulls(conn.token, repo.owner, repo.repo);
+      for (const p of pulls) {
+        await upsertPull(userId, {
+          owner: repo.owner,
+          repo: repo.repo,
+          number: p.number,
+          title: p.title,
+          body: p.body,
+          author: p.user?.login ?? "unknown",
+          state: p.state,
+          draft: Boolean(p.draft),
+          htmlUrl: p.html_url,
+          headSha: p.head.sha,
+          baseSha: p.base.sha,
+          headRef: p.head.ref,
+          baseRef: p.base.ref,
+          additions: p.additions ?? 0,
+          deletions: p.deletions ?? 0,
+          changedFiles: p.changed_files ?? 0,
+          isDemo: false,
+          githubUpdatedAt: p.updated_at,
+        });
+        pulled += 1;
+        if (repo.autoReview) {
+          pending.push({
+            owner: repo.owner,
+            repo: repo.repo,
+            number: p.number,
+          });
+        }
+      }
+    } catch (err) {
+      const detail =
+        err instanceof GithubError
+          ? err.message
+          : "hare-bot cannot read this repository";
+      errors.push(`${repo.owner}/${repo.repo}: ${detail}`);
+    }
+  }
+
+  const results = await mapPool(pending, REVIEW_CONCURRENCY, (item) =>
+    enqueueAndWait({
+      userId,
+      ...item,
+    }),
+  );
+  const reviewed = results.filter((r) => r.ok).length;
+  return { ok: true, reviewed, pulled, errors };
+}
 
 export const getDashboard = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -178,64 +245,9 @@ export const syncInbox = createServerFn({ method: "POST" })
     await seedDemoReview(context.userId);
     const conn = await getConnection(context.userId);
     if (!conn) {
-      return { ok: true as const, reviewed: 0, pulled: 0 };
+      return { ok: true as const, reviewed: 0, pulled: 0, errors: [] as string[] };
     }
-    const watched = await listWatched(context.userId);
-    let pulled = 0;
-    const pending: Array<{ owner: string; repo: string; number: number }> = [];
-    const errors: string[] = [];
-
-    for (const repo of watched) {
-      try {
-        const pulls = await listOpenPulls(conn.token, repo.owner, repo.repo);
-        for (const p of pulls) {
-          await upsertPull(context.userId, {
-            owner: repo.owner,
-            repo: repo.repo,
-            number: p.number,
-            title: p.title,
-            body: p.body,
-            author: p.user?.login ?? "unknown",
-            state: p.state,
-            draft: Boolean(p.draft),
-            htmlUrl: p.html_url,
-            headSha: p.head.sha,
-            baseSha: p.base.sha,
-            headRef: p.head.ref,
-            baseRef: p.base.ref,
-            additions: p.additions ?? 0,
-            deletions: p.deletions ?? 0,
-            changedFiles: p.changed_files ?? 0,
-            isDemo: false,
-            githubUpdatedAt: p.updated_at,
-          });
-          pulled += 1;
-          if (repo.autoReview) {
-            pending.push({
-              owner: repo.owner,
-              repo: repo.repo,
-              number: p.number,
-            });
-          }
-        }
-      } catch (err) {
-        const detail =
-          err instanceof GithubError
-            ? err.message
-            : "hare-bot cannot read this repository";
-        errors.push(`${repo.owner}/${repo.repo}: ${detail}`);
-      }
-    }
-
-    const results = await mapPool(pending, REVIEW_CONCURRENCY, (item) =>
-      reviewPullForUser({
-        userId: context.userId,
-        ...item,
-      }),
-    );
-    const reviewed = results.filter((r) => r.ok).length;
-
-    return { ok: true as const, reviewed, pulled, errors };
+    return drainWatchedReviews(context.userId);
   });
 
 export const runReview = createServerFn({ method: "POST" })
@@ -251,7 +263,7 @@ export const runReview = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     await ensureDemoPull(context.userId);
-    return reviewPullForUser({
+    return enqueueAndWait({
       userId: context.userId,
       owner: data.owner,
       repo: data.repo,

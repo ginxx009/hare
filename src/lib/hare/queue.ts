@@ -1,18 +1,24 @@
-
 export type ReviewJob = {
   userId: string;
   owner: string;
   repo: string;
   number: number;
   force?: boolean;
+  useLiveModel?: boolean;
 };
 
+export type ReviewJobResult = { ok: boolean; error?: string };
+
 const CONCURRENCY = 4;
-const STALE_MS = 8 * 60 * 1000;
+const STALE_MS = 90 * 1000;
+
+type QueuedJob = ReviewJob & {
+  resolve: (result: ReviewJobResult) => void;
+};
 
 type QueueState = {
-  pending: ReviewJob[];
-  inflight: Set<string>;
+  pending: QueuedJob[];
+  inflight: Map<string, Promise<ReviewJobResult>>;
   active: number;
 };
 
@@ -20,7 +26,7 @@ const g = globalThis as typeof globalThis & { __hareReviewQueue?: QueueState };
 
 function state(): QueueState {
   if (!g.__hareReviewQueue) {
-    g.__hareReviewQueue = { pending: [], inflight: new Set(), active: 0 };
+    g.__hareReviewQueue = { pending: [], inflight: new Map(), active: 0 };
   }
   return g.__hareReviewQueue;
 }
@@ -36,20 +42,31 @@ export function isStaleRunning(createdAt: string | null | undefined): boolean {
   return Date.now() - t > STALE_MS;
 }
 
-export function enqueueReview(job: ReviewJob): boolean {
+export function enqueueAndWait(job: ReviewJob): Promise<ReviewJobResult> {
   const s = state();
   const key = jobKey(job);
+  const running = s.inflight.get(key);
+  if (running && !job.force) return running;
+
   const waiting = s.pending.find((p) => jobKey(p) === key);
-  if (waiting) {
-    if (job.force) waiting.force = true;
-    return false;
+  if (waiting && !job.force) {
+    return new Promise((resolve) => {
+      const prev = waiting.resolve;
+      waiting.resolve = (result) => {
+        prev(result);
+        resolve(result);
+      };
+    });
   }
-  if (s.inflight.has(key)) {
-    if (job.force) s.pending.push({ ...job, force: true });
-    return job.force === true;
-  }
-  s.pending.push(job);
-  pump();
+
+  return new Promise((resolve) => {
+    s.pending.push({ ...job, resolve });
+    pump();
+  });
+}
+
+export function enqueueReview(job: ReviewJob): boolean {
+  void enqueueAndWait(job);
   return true;
 }
 
@@ -77,17 +94,27 @@ function pump(): void {
   while (s.active < CONCURRENCY && s.pending.length > 0) {
     const job = s.pending.shift()!;
     const key = jobKey(job);
-    s.inflight.add(key);
     s.active += 1;
-    void import("./engine")
+    const run = import("./engine")
       .then(({ reviewPullForUser }) => reviewPullForUser(job))
       .catch((err) => {
         console.error("[hare] queued review failed", key, err);
+        return {
+          ok: false as const,
+          error: err instanceof Error ? err.message : "Review failed",
+        };
       })
       .finally(() => {
         s.inflight.delete(key);
         s.active -= 1;
         pump();
       });
+    s.inflight.set(key, run);
+    void run.then(job.resolve, (err) =>
+      job.resolve({
+        ok: false,
+        error: err instanceof Error ? err.message : "Review failed",
+      }),
+    );
   }
 }

@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { findWatched } from "@/lib/hare/db";
 import { getPull } from "@/lib/hare/github";
 import { getConnection, upsertPull } from "@/lib/hare/db";
-import { enqueueReview } from "@/lib/hare/queue";
-import { userIdForActionSecret } from "@/lib/hare/server";
+import { enqueueAndWait } from "@/lib/hare/queue";
+import { drainWatchedReviews, userIdForActionSecret } from "@/lib/hare/server";
 
 async function post({ request }: { request: Request }) {
   const secret = request.headers.get("x-hare-secret")?.trim();
@@ -14,12 +14,18 @@ async function post({ request }: { request: Request }) {
   if (!userId) {
     return Response.json({ ok: false, message: "invalid secret" }, { status: 401 });
   }
-  let body: { owner?: string; repo?: string; pull_number?: number };
+  let body: { owner?: string; repo?: string; pull_number?: number; drain?: boolean };
   try {
     body = (await request.json()) as typeof body;
   } catch {
     return Response.json({ ok: false, message: "invalid json" }, { status: 400 });
   }
+
+  if (body.drain === true) {
+    const result = await drainWatchedReviews(userId);
+    return Response.json(result);
+  }
+
   const owner = body.owner?.trim();
   const repo = body.repo?.trim();
   const number = Number(body.pull_number);
@@ -55,8 +61,13 @@ async function post({ request }: { request: Request }) {
     isDemo: false,
     githubUpdatedAt: pr.updated_at,
   });
-  enqueueReview({ userId, owner, repo, number });
-  return Response.json({ ok: true, queued: true, number });
+  const result = await enqueueAndWait({ userId, owner, repo, number });
+  return Response.json({
+    ok: result.ok,
+    queued: false,
+    number,
+    error: result.error,
+  }, { status: result.ok ? 200 : 500 });
 }
 
 export const Route = createFileRoute("/api/github/action")({

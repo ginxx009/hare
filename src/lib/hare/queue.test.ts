@@ -23,8 +23,8 @@ describe("isStaleRunning", () => {
   it("keeps a fresh running review", () => {
     assert.equal(isStaleRunning(new Date().toISOString()), false);
   });
-  it("expires an 8+ minute running review", () => {
-    const old = new Date(Date.now() - 9 * 60 * 1000).toISOString();
+  it("expires a 90s+ running review", () => {
+    const old = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     assert.equal(isStaleRunning(old), true);
   });
 });
