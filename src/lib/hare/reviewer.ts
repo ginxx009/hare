@@ -2,6 +2,7 @@ import { parseUnifiedDiff, snapToChangedLine, truncateDiff } from "./diff";
 import { shouldIgnorePath } from "./ignore";
 import type { ChangedFile, ReviewerOutput, Severity } from "./types";
 import { PROJECT_BRIEF_PATHS } from "./briefs";
+import { extractJson } from "./json";
 
 const SEVERITIES: Severity[] = ["critical", "major", "minor", "nit"];
 
@@ -67,14 +68,28 @@ export function groundSeverity(severity: Severity, title: string, body: string):
   return severity;
 }
 
-function extractJson(text: string): unknown {
-  const trimmed = text.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const raw = fenced ? fenced[1] : trimmed;
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("Reviewer returned no JSON");
-  return JSON.parse(raw.slice(start, end + 1));
+function messageText(message: {
+  content?: unknown;
+  reasoning_content?: unknown;
+} | undefined): string {
+  if (!message) return "";
+  const content =
+    typeof message.content === "string"
+      ? message.content
+      : Array.isArray(message.content)
+        ? message.content
+            .map((part) =>
+              typeof part === "string"
+                ? part
+                : part && typeof part === "object" && "text" in part
+                  ? String((part as { text?: unknown }).text ?? "")
+                  : "",
+            )
+            .join("")
+        : "";
+  const reasoning =
+    typeof message.reasoning_content === "string" ? message.reasoning_content : "";
+  return content.trim() ? content : reasoning;
 }
 
 export function filterChangedFiles(
@@ -286,30 +301,43 @@ export async function runGrokReview(prompt: string): Promise<unknown> {
   const apiKey = process.env.XAI_API_KEY;
   if (!apiKey) throw new Error("AI is not available in this environment");
 
+  const body = JSON.stringify({
+    model: "grok-4.5",
+    temperature: 0.05,
+    max_tokens: 8192,
+    reasoning_effort: "low",
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: SYSTEM },
+      { role: "user", content: prompt },
+    ],
+  });
+
   const res = await fetch("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({
-      model: "grok-4.5",
-      temperature: 0.05,
-      max_tokens: 3500,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM },
-        { role: "user", content: prompt },
-      ],
-    }),
+    body,
   });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`xAI API error ${res.status}: ${text.slice(0, 200)}`);
   }
-  const body = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
+  const payload = (await res.json()) as {
+    choices?: {
+      finish_reason?: string;
+      message?: { content?: unknown; reasoning_content?: unknown };
+    }[];
   };
-  const content = body.choices?.[0]?.message?.content ?? "";
+  const choice = payload.choices?.[0];
+  const content = messageText(choice?.message);
+  if (!content.trim()) {
+    const reason = choice?.finish_reason ?? "unknown";
+    throw new Error(
+      `Reviewer returned no JSON (empty content, finish_reason=${reason}). Try a smaller PR or re-review.`,
+    );
+  }
   return extractJson(content);
 }
