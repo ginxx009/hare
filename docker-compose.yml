@@ -1,0 +1,38 @@
+# Local self-hosting: `docker compose up -d --build`, then expose port 8787 with ngrok.
+# Settings come from .env (see .env.example).
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: hare
+      POSTGRES_USER: hare
+      POSTGRES_PASSWORD: ${HARE_DB_PASSWORD:?set HARE_DB_PASSWORD in .env}
+    volumes:
+      - hare-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hare -d hare"]
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://hare:${HARE_DB_PASSWORD}@db:5432/hare
+      APP_URL: ${APP_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
+      XAI_API_KEY: ${XAI_API_KEY:-}
+      HARE_OWNER_ACCESS_KEY_SHA256: ${HARE_OWNER_ACCESS_KEY_SHA256:?run scripts/owner-setup.sh}
+      HARE_OWNER_TOTP_SECRET: ${HARE_OWNER_TOTP_SECRET:?run scripts/owner-setup.sh}
+      HARE_SESSION_SECRET: ${HARE_SESSION_SECRET:?run scripts/owner-setup.sh}
+    ports:
+      - "127.0.0.1:8787:3000"
+    mem_limit: 512m
+
+volumes:
+  hare-db:

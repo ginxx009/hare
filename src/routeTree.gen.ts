@@ -19,6 +19,9 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiGithubActionRouteImport } from './routes/api/github/action'
 import { Route as ApiGithubWebhookRouteImport } from './routes/api/github/webhook'
+import { Route as ApiOwnerLoginRouteImport } from './routes/api/owner/login'
+import { Route as ApiOwnerLogoutRouteImport } from './routes/api/owner/logout'
+import { Route as ApiOwnerSessionRouteImport } from './routes/api/owner/session'
 import { Route as AppPrOwnerRepoNumberRouteImport } from './routes/_app/pr.$owner.$repo.$number'
 
 const IndexRoute = IndexRouteImport.update({
@@ -70,6 +73,21 @@ const ApiGithubWebhookRoute = ApiGithubWebhookRouteImport.update({
   path: '/api/github/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOwnerLoginRoute = ApiOwnerLoginRouteImport.update({
+  id: '/api/owner/login',
+  path: '/api/owner/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOwnerLogoutRoute = ApiOwnerLogoutRouteImport.update({
+  id: '/api/owner/logout',
+  path: '/api/owner/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOwnerSessionRoute = ApiOwnerSessionRouteImport.update({
+  id: '/api/owner/session',
+  path: '/api/owner/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppPrOwnerRepoNumberRoute = AppPrOwnerRepoNumberRouteImport.update({
   id: '/pr/$owner/$repo/$number',
   path: '/pr/$owner/$repo/$number',
@@ -86,6 +104,9 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/github/action': typeof ApiGithubActionRoute
   '/api/github/webhook': typeof ApiGithubWebhookRoute
+  '/api/owner/login': typeof ApiOwnerLoginRoute
+  '/api/owner/logout': typeof ApiOwnerLogoutRoute
+  '/api/owner/session': typeof ApiOwnerSessionRoute
   '/pr/$owner/$repo/$number': typeof AppPrOwnerRepoNumberRoute
 }
 export interface FileRoutesByTo {
@@ -98,6 +119,9 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/github/action': typeof ApiGithubActionRoute
   '/api/github/webhook': typeof ApiGithubWebhookRoute
+  '/api/owner/login': typeof ApiOwnerLoginRoute
+  '/api/owner/logout': typeof ApiOwnerLogoutRoute
+  '/api/owner/session': typeof ApiOwnerSessionRoute
   '/pr/$owner/$repo/$number': typeof AppPrOwnerRepoNumberRoute
 }
 export interface FileRoutesById {
@@ -112,6 +136,9 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/github/action': typeof ApiGithubActionRoute
   '/api/github/webhook': typeof ApiGithubWebhookRoute
+  '/api/owner/login': typeof ApiOwnerLoginRoute
+  '/api/owner/logout': typeof ApiOwnerLogoutRoute
+  '/api/owner/session': typeof ApiOwnerSessionRoute
   '/_app/pr/$owner/$repo/$number': typeof AppPrOwnerRepoNumberRoute
 }
 export interface FileRouteTypes {
@@ -126,6 +153,9 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/github/action'
     | '/api/github/webhook'
+    | '/api/owner/login'
+    | '/api/owner/logout'
+    | '/api/owner/session'
     | '/pr/$owner/$repo/$number'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -138,6 +168,9 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/github/action'
     | '/api/github/webhook'
+    | '/api/owner/login'
+    | '/api/owner/logout'
+    | '/api/owner/session'
     | '/pr/$owner/$repo/$number'
   id:
     | '__root__'
@@ -151,6 +184,9 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/github/action'
     | '/api/github/webhook'
+    | '/api/owner/login'
+    | '/api/owner/logout'
+    | '/api/owner/session'
     | '/_app/pr/$owner/$repo/$number'
   fileRoutesById: FileRoutesById
 }
@@ -162,6 +198,9 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiGithubActionRoute: typeof ApiGithubActionRoute
   ApiGithubWebhookRoute: typeof ApiGithubWebhookRoute
+  ApiOwnerLoginRoute: typeof ApiOwnerLoginRoute
+  ApiOwnerLogoutRoute: typeof ApiOwnerLogoutRoute
+  ApiOwnerSessionRoute: typeof ApiOwnerSessionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -236,6 +275,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGithubWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/owner/login': {
+      id: '/api/owner/login'
+      path: '/api/owner/login'
+      fullPath: '/api/owner/login'
+      preLoaderRoute: typeof ApiOwnerLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/owner/logout': {
+      id: '/api/owner/logout'
+      path: '/api/owner/logout'
+      fullPath: '/api/owner/logout'
+      preLoaderRoute: typeof ApiOwnerLogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/owner/session': {
+      id: '/api/owner/session'
+      path: '/api/owner/session'
+      fullPath: '/api/owner/session'
+      preLoaderRoute: typeof ApiOwnerSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/pr/$owner/$repo/$number': {
       id: '/_app/pr/$owner/$repo/$number'
       path: '/pr/$owner/$repo/$number'
@@ -270,6 +330,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiGithubActionRoute: ApiGithubActionRoute,
   ApiGithubWebhookRoute: ApiGithubWebhookRoute,
+  ApiOwnerLoginRoute: ApiOwnerLoginRoute,
+  ApiOwnerLogoutRoute: ApiOwnerLogoutRoute,
+  ApiOwnerSessionRoute: ApiOwnerSessionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

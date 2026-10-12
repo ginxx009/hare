@@ -1,4 +1,5 @@
 import { authClient, authEnabled } from "./client";
+import { ownerAuthMode, useOwnerSession } from "./owner-client";
 
 /** Normalized user shape used across the app, auth on or off. */
 export type AppUser = {
@@ -54,9 +55,21 @@ export type CurrentUserState = {
  * `authEnabled` is a module-level constant fixed at load, so the guarded hook
  * call keeps a stable hook order across every render of a given component.
  */
+const OWNER_USER: AppUser = {
+  id: "owner",
+  displayName: "Owner",
+  primaryEmail: null,
+  profileImageUrl: null,
+  isDevFallback: false,
+};
+
 export function useCurrentUserState(): CurrentUserState {
+  if (ownerAuthMode) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- ownerAuthMode is a build-time constant
+    const { isPending, signedIn } = useOwnerSession();
+    return { user: signedIn ? OWNER_USER : null, isPending };
+  }
   if (!authEnabled) return { user: DEV_USER, isPending: false };
-  // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
   const { data, isPending } = authClient.useSession();
   const user = data?.user;
   return {

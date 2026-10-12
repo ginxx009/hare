@@ -32,7 +32,7 @@ import {
   buildReviewPrompt,
   filterChangedFiles,
   normalizeReviewerOutput,
-  runGrokReview,
+  runModelReview,
   suggestContextPaths,
 } from "./reviewer";
 import { contextLoadOrder, isProjectBrief } from "./briefs";
@@ -410,7 +410,7 @@ export async function reviewPullForUser(input: {
       contextFiles,
     });
 
-    const raw = await runGrokReview(prompt);
+    const raw = await runModelReview(prompt);
     const output = mergeMigrationFindings(
       normalizeReviewerOutput(raw, files, diff),
       scanMigrationIssues({ files, diff, contextFiles }),

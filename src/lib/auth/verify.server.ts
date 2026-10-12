@@ -1,5 +1,6 @@
 import { getRequest } from "@tanstack/react-start/server";
 import { gateIdentityEnabled } from "./gate-identity.server";
+import { ownerAuthEnabled, ownerFromRequest } from "./owner.server";
 import { auth, authConfigured } from "./server";
 
 /**
@@ -18,7 +19,7 @@ const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
 /** Re-export so callers can branch on it without importing `server.ts`. */
 export { authConfigured };
 
-if (databaseConfigured && !authConfigured) {
+if (databaseConfigured && !authConfigured && !ownerAuthEnabled()) {
   console.error(
     "[auth] DATABASE_URL is set but auth is disabled (VITE_AUTH_ENABLED=false) " +
       "— requireUserId() will reject every request (fail closed) rather than " +
@@ -57,6 +58,11 @@ export type VerifiedUser = { id: string; email: string | null };
 export async function getSessionUser(
   bearerToken?: string,
 ): Promise<VerifiedUser | null> {
+  if (ownerAuthEnabled()) {
+    const request = getRequest();
+    const id = request ? ownerFromRequest(request) : null;
+    return id ? { id, email: null } : null;
+  }
   if (!authConfigured && !gateIdentityEnabled()) return null;
   const request = getRequest();
   if (!request) return null;
@@ -82,6 +88,11 @@ export async function getSessionUser(
  * - Auth disabled + no database -> the shared dev user id.
  */
 export async function requireUserId(bearerToken?: string): Promise<string> {
+  if (ownerAuthEnabled()) {
+    const user = await getSessionUser();
+    if (!user) throw new UnauthorizedError();
+    return user.id;
+  }
   if (!authConfigured && !gateIdentityEnabled()) {
     if (databaseConfigured) {
       throw new Error(
