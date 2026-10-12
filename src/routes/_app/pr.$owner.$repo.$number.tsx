@@ -123,7 +123,7 @@ function PullPage() {
               disabled={review.isPending}
               onClick={() => review.mutate({ force: true, useLiveModel: true })}
             >
-              {review.isPending ? "Reviewing…" : "Re-run with Grok"}
+              {review.isPending ? "Reviewing…" : "Re-run review"}
             </Button>
           ) : (
             <Button

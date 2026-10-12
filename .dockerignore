@@ -1,0 +1,12 @@
+node_modules
+.output
+.nitro
+.tanstack
+.vite
+.git
+.env
+.env.*
+.grok
+docs
+coverage
+*.log

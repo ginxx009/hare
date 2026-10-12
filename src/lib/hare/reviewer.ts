@@ -297,33 +297,63 @@ export function normalizeReviewerOutput(
   };
 }
 
-export async function runGrokReview(prompt: string): Promise<unknown> {
-  const apiKey = process.env.XAI_API_KEY;
-  if (!apiKey) throw new Error("AI is not available in this environment");
+/**
+ * Which model reviews: OpenAI when `OPENAI_API_KEY` is set (`OPENAI_MODEL`,
+ * default gpt-5-mini), otherwise xAI Grok via `XAI_API_KEY`.
+ */
+export function reviewerModel(): { provider: "openai" | "xai"; model: string } | null {
+  if (process.env.OPENAI_API_KEY?.trim()) {
+    return { provider: "openai", model: process.env.OPENAI_MODEL?.trim() || "gpt-5-mini" };
+  }
+  if (process.env.XAI_API_KEY?.trim()) return { provider: "xai", model: "grok-4.5" };
+  return null;
+}
 
-  const body = JSON.stringify({
-    model: "grok-4.5",
-    temperature: 0.05,
-    max_tokens: 8192,
-    reasoning_effort: "low",
-    response_format: { type: "json_object" },
-    messages: [
-      { role: "system", content: SYSTEM },
-      { role: "user", content: prompt },
-    ],
-  });
+export async function runModelReview(prompt: string): Promise<unknown> {
+  const target = reviewerModel();
+  if (!target) throw new Error("AI is not available in this environment");
+  const messages = [
+    { role: "system", content: SYSTEM },
+    { role: "user", content: prompt },
+  ];
 
-  const res = await fetch("https://api.x.ai/v1/chat/completions", {
+  // OpenAI reasoning models take max_completion_tokens and only the default temperature.
+  const body =
+    target.provider === "openai"
+      ? {
+          model: target.model,
+          max_completion_tokens: 16384,
+          reasoning_effort: "low",
+          response_format: { type: "json_object" },
+          messages,
+        }
+      : {
+          model: target.model,
+          temperature: 0.05,
+          max_tokens: 8192,
+          reasoning_effort: "low",
+          response_format: { type: "json_object" },
+          messages,
+        };
+  const url =
+    target.provider === "openai"
+      ? "https://api.openai.com/v1/chat/completions"
+      : "https://api.x.ai/v1/chat/completions";
+  const apiKey =
+    target.provider === "openai" ? process.env.OPENAI_API_KEY!.trim() : process.env.XAI_API_KEY!.trim();
+
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body,
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`xAI API error ${res.status}: ${text.slice(0, 200)}`);
+    const name = target.provider === "openai" ? "OpenAI" : "xAI";
+    throw new Error(`${name} API error ${res.status}: ${text.slice(0, 200)}`);
   }
   const payload = (await res.json()) as {
     choices?: {

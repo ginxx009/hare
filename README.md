@@ -217,6 +217,24 @@ Auth for the Hare dashboard uses the app’s Better Auth setup (email/password i
 
 ---
 
+## Self-hosting with Docker
+
+Runs Hare and its own Postgres in Docker. Reviews use OpenAI (`OPENAI_API_KEY`, model `OPENAI_MODEL`, default `gpt-5-mini`); xAI is used only when no OpenAI key is set.
+
+The dashboard has one owner who signs in with an **access key + authenticator code**. There is no sign-up or third-party login.
+
+```bash
+sh scripts/owner-setup.sh        # fills .env, writes OWNER-ACCESS.txt (save it, then delete it)
+# put OPENAI_API_KEY (and APP_URL) in .env
+docker compose up -d --build     # app on http://127.0.0.1:8787
+ngrok http 8787 --url=https://<your-domain>   # public URL for GitHub webhooks
+```
+
+- Only `127.0.0.1:8787` is published; the tunnel is the only way in from outside.
+- Five wrong sign-in attempts lock that client out for 15 minutes. Sessions last 12 hours.
+- `sh scripts/owner-setup.sh --rotate` issues a new access key and authenticator secret (restart `app` after).
+- Build without Docker: `NITRO_PRESET=node-server VITE_AUTH_ENABLED=false VITE_HARE_OWNER_AUTH=true npx vite build`, then `node scripts/migrate.mjs && node .output/server/index.mjs`.
+
 ## Scripts
 
 ```bash
